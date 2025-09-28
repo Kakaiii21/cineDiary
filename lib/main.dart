@@ -1,7 +1,7 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:proj1/pages/authentication.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:proj1/pages/authentication.dart';
 
 // ✅ IMPORT YOUR MODEL (adjust the path if yours is different)
 import 'models/note_model.dart';
@@ -17,6 +17,7 @@ void main() async {
   await Hive.openBox('movies');
   await Hive.openBox('libraries');
   await Hive.openBox<Note>('notes'); // typed box is fine now
+  await Hive.openBox('profileBox'); // ✅ Add this
 
   runApp(const MyApp());
 }

@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive/hive.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -11,24 +15,157 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isEditing = false;
 
+  File? savedCoverImage;
+  File? savedProfileImage;
+
+  File? tempCoverImage;
+  File? tempProfileImage;
+
+  final ImagePicker _picker = ImagePicker();
+  late Box profileBox;
+
+  @override
+  void initState() {
+    super.initState();
+    profileBox = Hive.box('profileBox');
+    _loadSavedImages();
+  }
+
+  void _loadSavedImages() {
+    final coverPath = profileBox.get('coverImage');
+    final profilePath = profileBox.get('profileImage');
+
+    setState(() {
+      if (coverPath != null) savedCoverImage = File(coverPath);
+      if (profilePath != null) savedProfileImage = File(profilePath);
+    });
+  }
+
+  Future<void> _pickCoverImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      setState(() => tempCoverImage = File(picked.path));
+    }
+  }
+
+  Future<void> _pickProfileImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      setState(() => tempProfileImage = File(picked.path));
+    }
+  }
+
+  Future<void> _saveImages() async {
+    if (tempCoverImage != null) {
+      savedCoverImage = tempCoverImage;
+      profileBox.put('coverImage', savedCoverImage!.path);
+    }
+    if (tempProfileImage != null) {
+      savedProfileImage = tempProfileImage;
+      profileBox.put('profileImage', savedProfileImage!.path);
+    }
+    tempCoverImage = null;
+    tempProfileImage = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromRGBO(15, 29, 56, 1),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, // ensure left alignment
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 20),
+            // Cover + Profile Section
+            SizedBox(
+              height: 180,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  // Cover Photo
+                  GestureDetector(
+                    onTap: isEditing ? _pickCoverImage : null,
+                    child: Container(
+                      height: 180,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: const Color.fromRGBO(15, 29, 56, 1),
+                        ),
+                        image: DecorationImage(
+                          image:
+                              (isEditing ? tempCoverImage : savedCoverImage) !=
+                                  null
+                              ? FileImage(
+                                  isEditing
+                                      ? tempCoverImage!
+                                      : savedCoverImage!,
+                                )
+                              : const AssetImage("assets/images/cover.png")
+                                    as ImageProvider,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      child: isEditing
+                          ? Container(
+                              color: Colors.black38,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                  size: 40,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
 
-            // Profile Picture
-            Center(
-              child: CircleAvatar(
-                radius: 55,
-                backgroundImage: const AssetImage("assets/profile.jpg"),
+                  // Profile Picture
+                  Positioned(
+                    bottom: -50,
+                    child: GestureDetector(
+                      onTap: isEditing ? _pickProfileImage : null,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color.fromRGBO(15, 29, 56, 1),
+                            width: 7,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 55,
+                          backgroundImage:
+                              (isEditing
+                                      ? tempProfileImage
+                                      : savedProfileImage) !=
+                                  null
+                              ? FileImage(
+                                  isEditing
+                                      ? tempProfileImage!
+                                      : savedProfileImage!,
+                                )
+                              : const AssetImage("assets/profile.jpg")
+                                    as ImageProvider,
+                          backgroundColor: Colors.white,
+                          child: isEditing
+                              ? const Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                  size: 30,
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 15),
+
+            const SizedBox(height: 70),
 
             // Username
             Center(
@@ -58,57 +195,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (!isEditing) ...[
                   ElevatedButton(
                     onPressed: () {
-                      setState(() => isEditing = true);
+                      setState(() {
+                        // When user taps Edit, preload the last saved images
+                        tempCoverImage = savedCoverImage;
+                        tempProfileImage = savedProfileImage;
+                        isEditing = true;
+                      });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Color.fromRGBO(109, 133, 159, 1),
+                      foregroundColor: Colors.white,
+                      minimumSize: Size(110, 28),
                     ),
-                    child: const Text("Edit"),
+                    child: const Text(
+                      "Edit",
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
+
                   const SizedBox(width: 10),
-                  OutlinedButton(
-                    onPressed: () {
-                      // log out function
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white70),
+                  ElevatedButton(
+                    onPressed: () {},
+
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color.fromRGBO(43, 82, 158, 1),
+                      foregroundColor: Colors.black,
+                      minimumSize: Size(110, 28),
                     ),
                     child: const Text(
                       "Log Out",
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ] else ...[
-                  OutlinedButton(
+                  ElevatedButton(
                     onPressed: () {
-                      setState(() => isEditing = false);
+                      setState(() {
+                        tempCoverImage = null;
+                        tempProfileImage = null;
+                        isEditing = false;
+                      });
                     },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white70),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color.fromRGBO(109, 133, 159, 1),
+                      foregroundColor: Colors.white,
+                      minimumSize: Size(110, 28),
                     ),
                     child: const Text(
                       "Discard",
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      await _saveImages();
                       setState(() => isEditing = false);
-                      // save function
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Color.fromRGBO(43, 82, 158, 1),
+                      foregroundColor: Colors.black,
+                      minimumSize: Size(110, 28),
                     ),
-                    child: const Text("Save"),
+                    child: const Text(
+                      "Save",
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: 20),
 
+            const SizedBox(height: 10),
             const Divider(color: Colors.black, thickness: 1.5),
-            const Divider(color: Colors.white24, thickness: 0.5),
+            const SizedBox(height: 10),
 
             // Account Settings List
             Padding(
