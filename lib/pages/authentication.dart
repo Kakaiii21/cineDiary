@@ -143,80 +143,92 @@ class _AuthenticationState extends State<Authentication> {
           ),
           Align(
             alignment: Alignment.bottomCenter,
-            child: Container(
-              height: 530,
-              width: 500,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                color: Colors.white,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
+                minWidth: double.infinity,
               ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 30),
-                  Container(
-                    width: 350,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: const Color.fromRGBO(232, 229, 229, 1),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => showLogin = true),
-                            child: Container(
-                              margin: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: showLogin
-                                    ? Colors.white
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                "LOG IN",
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: showLogin
-                                      ? const Color.fromRGBO(15, 29, 56, 1)
-                                      : Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => showLogin = false),
-                            child: Container(
-                              margin: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: !showLogin
-                                    ? Colors.white
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                "SIGN UP",
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: !showLogin
-                                      ? const Color.fromRGBO(15, 29, 56, 1)
-                                      : Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30),
+                  color: Colors.white,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
                   ),
-                  showLogin ? _buildLoginUI() : _buildRegistrationUI(),
-                ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 20),
+                      Container(
+                        width: double.infinity,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: const Color.fromRGBO(232, 229, 229, 1),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => showLogin = true),
+                                child: Container(
+                                  margin: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: showLogin
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    "LOG IN",
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: showLogin
+                                          ? const Color.fromRGBO(15, 29, 56, 1)
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => showLogin = false),
+                                child: Container(
+                                  margin: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: !showLogin
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    "SIGN UP",
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: !showLogin
+                                          ? const Color.fromRGBO(15, 29, 56, 1)
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      showLogin ? _buildLoginUI() : _buildRegistrationUI(),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -227,7 +239,7 @@ class _AuthenticationState extends State<Authentication> {
 
   Widget _buildLoginUI() {
     return Padding(
-      padding: const EdgeInsets.only(top: 20, left: 40, right: 40),
+      padding: const EdgeInsets.only(top: 10, left: 10, right: 10),
       child: Column(
         children: [
           TextField(
@@ -296,67 +308,92 @@ class _AuthenticationState extends State<Authentication> {
 
   Widget _buildRegistrationUI() {
     return Padding(
-      padding: const EdgeInsets.only(top: 10, left: 40, right: 40),
-      child: Column(
-        children: [
-          TextField(
-            controller: _registerEmailController,
-            decoration: _inputDecoration("Enter email", Icons.mail_outline),
-            style: _inputTextStyle(),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _registerUsernameController,
-            decoration: _inputDecoration(
-              "Enter username",
-              Icons.person_2_outlined,
-            ),
-            style: _inputTextStyle(),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _registerPasswordController,
-            obscureText: true,
-            obscuringCharacter: "●",
-            decoration: _inputDecoration("New password", Icons.lock_outline),
-            style: _inputTextStyle(),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _registerConfirmPasswordController,
-            obscureText: true,
-            obscuringCharacter: "●",
-            decoration: _inputDecoration(
-              "Confirm password",
-              Icons.lock_outline,
-            ),
-            style: _inputTextStyle(),
-          ),
-          Row(
-            children: [
-              Checkbox(
-                value: isChecked,
-                onChanged: (value) => setState(() => isChecked = value!),
+      padding: const EdgeInsets.only(top: 10, left: 10, right: 10),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Email
+            Container(
+              width: double.infinity, // expand to full width
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              child: TextField(
+                controller: _registerEmailController,
+                decoration: _inputDecoration("Enter email", Icons.mail_outline),
+                style: _inputTextStyle(),
               ),
-              const Text(
-                "Remember Me",
-                style: TextStyle(color: Color.fromRGBO(15, 29, 56, 0.5)),
+            ),
+
+            // Username
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              child: TextField(
+                controller: _registerUsernameController,
+                decoration: _inputDecoration(
+                  "Enter username",
+                  Icons.person_2_outlined,
+                ),
+                style: _inputTextStyle(),
               ),
+            ),
+
+            // Password
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              child: TextField(
+                controller: _registerPasswordController,
+                obscureText: true,
+                obscuringCharacter: "●",
+                decoration: _inputDecoration(
+                  "New password",
+                  Icons.lock_outline,
+                ),
+                style: _inputTextStyle(),
+              ),
+            ),
+
+            // Confirm Password
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              child: TextField(
+                controller: _registerConfirmPasswordController,
+                obscureText: true,
+                obscuringCharacter: "●",
+                decoration: _inputDecoration(
+                  "Confirm password",
+                  Icons.lock_outline,
+                ),
+                style: _inputTextStyle(),
+              ),
+            ),
+            Row(
+              children: [
+                Checkbox(
+                  value: isChecked,
+                  onChanged: (value) => setState(() => isChecked = value!),
+                ),
+                const Text(
+                  "Remember Me",
+                  style: TextStyle(color: Color.fromRGBO(15, 29, 56, 0.5)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            _loading
+                ? const CircularProgressIndicator()
+                : _actionButton("SIGN UP", _register),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
             ],
-          ),
-          const SizedBox(height: 5),
-          _loading
-              ? const CircularProgressIndicator()
-              : _actionButton("SIGN UP", _register),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 5),
+            _dividerWithLabel("OTHER"),
+            const SizedBox(height: 5),
+            _socialIcons(),
           ],
-          const SizedBox(height: 5),
-          _dividerWithLabel("OTHER"),
-          const SizedBox(height: 5),
-          _socialIcons(),
-        ],
+        ),
       ),
     );
   }
@@ -393,20 +430,25 @@ class _AuthenticationState extends State<Authentication> {
   }
 
   Widget _actionButton(String label, VoidCallback onPressed) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color.fromRGBO(15, 29, 56, 1),
-        padding: const EdgeInsets.symmetric(horizontal: 130, vertical: 15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        elevation: 5,
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.jua(
-          fontSize: 20,
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+    return SizedBox(
+      width: 300, // Set your desired width
+      height: 60, // Set your desired height
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color.fromRGBO(15, 29, 56, 1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 5,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.jua(
+            fontSize: 20,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
