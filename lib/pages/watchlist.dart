@@ -28,7 +28,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
         children: [
           Container(
             width: 110,
-            height: 160,
+            height: 148,
             margin: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -105,63 +105,73 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
 
                 /// Toggle (Library / Reviews)
                 Container(
-                  width: 260,
-                  height: 40,
+                  width: 350,
+                  height: 50,
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: Colors.black26,
+                    color: const Color.fromRGBO(15, 29, 56, 1),
                     borderRadius: BorderRadius.circular(25),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Expanded(
+                        // ✅ make both buttons equal width
                         child: GestureDetector(
                           onTap: () => setState(() {
                             selectedTab = 0;
-                            selectedLibrary = null; // reset
+                            selectedLibrary = null;
                           }),
                           child: Container(
                             decoration: BoxDecoration(
                               color: selectedTab == 0
-                                  ? const Color.fromRGBO(183, 151, 1, 1)
+                                  ? const Color.fromRGBO(
+                                      236,
+                                      197,
+                                      61,
+                                      1,
+                                    ) // ✅ toggled button color
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(25),
                             ),
-                            child: Center(
-                              child: Text(
-                                "LIBRARY",
-                                style: TextStyle(
-                                  color: selectedTab == 0
-                                      ? Colors.black
-                                      : Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              "SAVED",
+                              style: TextStyle(
+                                color: selectedTab == 0
+                                    ? Colors
+                                          .white // better contrast on yellow
+                                    : Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
                             ),
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: GestureDetector(
                           onTap: () => setState(() {
                             selectedTab = 1;
-                            selectedLibrary = null; // reset
+                            selectedLibrary = null;
                           }),
                           child: Container(
                             decoration: BoxDecoration(
                               color: selectedTab == 1
-                                  ? const Color.fromRGBO(183, 151, 1, 1)
+                                  ? const Color.fromRGBO(236, 197, 61, 1)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(25),
                             ),
-                            child: Center(
-                              child: Text(
-                                "REVIEWS",
-                                style: TextStyle(
-                                  color: selectedTab == 1
-                                      ? Colors.black
-                                      : Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              "REVIEWS",
+                              style: TextStyle(
+                                color: selectedTab == 1
+                                    ? Colors.white
+                                    : Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
                             ),
                           ),
@@ -268,7 +278,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                                         top: 6,
                                         child: Container(
                                           width: 110,
-                                          height: 160,
+                                          height: 142,
                                           decoration: BoxDecoration(
                                             color: Colors.black26,
                                             borderRadius: BorderRadius.circular(
@@ -277,9 +287,10 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                                           ),
                                         ),
                                       ),
+
                                       Container(
                                         width: 110,
-                                        height: 155,
+                                        height: 142,
                                         decoration: BoxDecoration(
                                           borderRadius: BorderRadius.circular(
                                             12,

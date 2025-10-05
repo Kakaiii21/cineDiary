@@ -1,25 +1,34 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:proj1/firebase/auth_service.dart';
 import 'package:proj1/pages/authentication.dart';
+import 'package:proj1/pages/mainTools.dart';
+import 'package:provider/provider.dart';
 
-// ✅ IMPORT YOUR MODEL (adjust the path if yours is different)
+import 'firebase_options.dart';
 import 'models/note_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   await Hive.initFlutter();
-
-  // ✅ Register the adapter (works if note_model.g.dart exists)
   Hive.registerAdapter(NoteAdapter());
-
-  // Open your Hive boxes
   await Hive.openBox('movies');
   await Hive.openBox('libraries');
-  await Hive.openBox<Note>('notes'); // typed box is fine now
-  await Hive.openBox('profileBox'); // ✅ Add this
+  await Hive.openBox<Note>('notes');
+  await Hive.openBox('profileBox');
 
-  runApp(const MyApp());
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  runApp(
+    ChangeNotifierProvider(create: (_) => AuthService(), child: const MyApp()),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -29,6 +38,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
       home: AnimatedSplashScreen(
         splash: Container(
           decoration: const BoxDecoration(
@@ -46,10 +60,31 @@ class MyApp extends StatelessWidget {
           ),
         ),
         splashIconSize: double.infinity,
-        nextScreen: const Authentication(),
+        nextScreen: const RouterWidget(), // ✅ start router after splash
         duration: 3100,
         backgroundColor: Colors.transparent,
       ),
+    );
+  }
+}
+
+/// ✅ Router starts *after* splash
+final _router = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(path: '/', builder: (context, state) => const Authentication()),
+    GoRoute(path: '/home', builder: (context, state) => const MainPage()),
+  ],
+);
+
+class RouterWidget extends StatelessWidget {
+  const RouterWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
+      routerConfig: _router,
     );
   }
 }

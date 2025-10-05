@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
@@ -14,45 +16,57 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isEditing = false;
-
   File? savedCoverImage;
   File? savedProfileImage;
-
   File? tempCoverImage;
   File? tempProfileImage;
-
   final ImagePicker _picker = ImagePicker();
   late Box profileBox;
+
+  String? username;
+  String? email;
 
   @override
   void initState() {
     super.initState();
     profileBox = Hive.box('profileBox');
     _loadSavedImages();
+    _loadUserData();
   }
 
   void _loadSavedImages() {
     final coverPath = profileBox.get('coverImage');
     final profilePath = profileBox.get('profileImage');
-
     setState(() {
       if (coverPath != null) savedCoverImage = File(coverPath);
       if (profilePath != null) savedProfileImage = File(profilePath);
     });
   }
 
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists) {
+        setState(() {
+          username = doc['username'];
+          email = doc['email'];
+        });
+      }
+    }
+  }
+
   Future<void> _pickCoverImage() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() => tempCoverImage = File(picked.path));
-    }
+    if (picked != null) setState(() => tempCoverImage = File(picked.path));
   }
 
   Future<void> _pickProfileImage() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() => tempProfileImage = File(picked.path));
-    }
+    if (picked != null) setState(() => tempProfileImage = File(picked.path));
   }
 
   Future<void> _saveImages() async {
@@ -83,7 +97,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 clipBehavior: Clip.none,
                 alignment: Alignment.center,
                 children: [
-                  // Cover Photo
                   GestureDetector(
                     onTap: isEditing ? _pickCoverImage : null,
                     child: Container(
@@ -121,8 +134,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : null,
                     ),
                   ),
-
-                  // Profile Picture
                   Positioned(
                     bottom: -50,
                     child: GestureDetector(
@@ -149,14 +160,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 )
                               : const AssetImage("assets/profile.jpg")
                                     as ImageProvider,
-                          backgroundColor: Colors.white,
-                          child: isEditing
-                              ? const Icon(
-                                  Icons.add,
-                                  color: Colors.white,
-                                  size: 30,
-                                )
-                              : null,
                         ),
                       ),
                     ),
@@ -164,13 +167,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-
             const SizedBox(height: 70),
 
             // Username
             Center(
               child: Text(
-                "yOnesa",
+                username ?? 'Loading...',
                 style: GoogleFonts.poppins(
                   color: Colors.white,
                   fontSize: 22,
@@ -182,13 +184,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Email
             Center(
               child: Text(
-                "yonesa001@gmail.com",
+                email ?? 'Loading...',
                 style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
               ),
             ),
+
             const SizedBox(height: 15),
 
-            // Edit / Save - Discard Buttons
+            // Buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -196,16 +199,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ElevatedButton(
                     onPressed: () {
                       setState(() {
-                        // When user taps Edit, preload the last saved images
                         tempCoverImage = savedCoverImage;
                         tempProfileImage = savedProfileImage;
                         isEditing = true;
                       });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color.fromRGBO(109, 133, 159, 1),
-                      foregroundColor: Colors.white,
-                      minimumSize: Size(110, 28),
+                      backgroundColor: const Color.fromRGBO(109, 133, 159, 1),
+                      minimumSize: const Size(110, 28),
                     ),
                     child: const Text(
                       "Edit",
@@ -215,15 +216,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: () {},
-
+                    onPressed: () async {
+                      await FirebaseAuth.instance.signOut();
+                      if (context.mounted)
+                        Navigator.of(
+                          context,
+                        ).pushNamedAndRemoveUntil('/', (_) => false);
+                    },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color.fromRGBO(43, 82, 158, 1),
-                      foregroundColor: Colors.black,
-                      minimumSize: Size(110, 28),
+                      backgroundColor: const Color.fromRGBO(43, 82, 158, 1),
+                      minimumSize: const Size(110, 28),
                     ),
                     child: const Text(
                       "Log Out",
@@ -243,9 +247,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color.fromRGBO(109, 133, 159, 1),
-                      foregroundColor: Colors.white,
-                      minimumSize: Size(110, 28),
+                      backgroundColor: const Color.fromRGBO(109, 133, 159, 1),
+                      minimumSize: const Size(110, 28),
                     ),
                     child: const Text(
                       "Discard",
@@ -262,9 +265,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       setState(() => isEditing = false);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color.fromRGBO(43, 82, 158, 1),
-                      foregroundColor: Colors.black,
-                      minimumSize: Size(110, 28),
+                      backgroundColor: const Color.fromRGBO(43, 82, 158, 1),
+                      minimumSize: const Size(110, 28),
                     ),
                     child: const Text(
                       "Save",

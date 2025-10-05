@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:proj1/pages/movie.dart';
 import 'package:proj1/pages/notes.dart';
 import 'package:proj1/pages/profile.dart';
 import 'package:proj1/pages/watchlist.dart';
 import 'package:proj1/pages/weather.dart';
+import 'package:provider/provider.dart';
+
+import '../firebase/auth_service.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -223,11 +227,22 @@ class _MainPageState extends State<MainPage> {
                     'Logout',
                     style: TextStyle(color: Colors.red),
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context); // Back to login
+                  onTap: () async {
+                    Navigator.pop(context); // Close drawer first
+
+                    final authService = Provider.of<AuthService>(
+                      context,
+                      listen: false,
+                    );
+                    await authService.signOut();
+
+                    // ✅ Use GoRouter to redirect properly
+                    if (context.mounted) {
+                      context.go('/'); // GoRouter navigation back to login
+                    }
                   },
                 ),
+
                 Divider(color: Colors.white24, thickness: 2, height: 0),
               ],
             ),
@@ -244,7 +259,7 @@ class _MainPageState extends State<MainPage> {
           bottomNavigationBar: Stack(
             alignment: Alignment.bottomCenter,
             children: [
-              // keep your navbg.png
+              // navbg.png background
               Container(
                 height: 100,
                 decoration: const BoxDecoration(
@@ -252,10 +267,19 @@ class _MainPageState extends State<MainPage> {
                     image: AssetImage('assets/images/navbg.png'),
                     fit: BoxFit.cover,
                   ),
+                  boxShadow: [
+                    // ✅ Add shadow here
+                    BoxShadow(
+                      color: Colors.black54, // shadow color
+                      offset: Offset(0, 30), // shadow direction (top side)
+                      blurRadius: 15, // softness
+                      spreadRadius: 5, // how wide shadow spreads
+                    ),
+                  ],
                 ),
               ),
 
-              // transparent BottomNavigationBar overlaying navbg.png
+              // Transparent BottomNavigationBar overlaying navbg.png
               BottomNavigationBar(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
