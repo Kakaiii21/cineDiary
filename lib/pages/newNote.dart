@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 👈 for current user
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+
 import '../models/note_model.dart';
 
 class NoteEditor extends StatefulWidget {
@@ -15,6 +18,8 @@ class NoteEditor extends StatefulWidget {
 class _NoteEditorState extends State<NoteEditor> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance; // 👈 to get user ID
 
   @override
   void initState() {
@@ -26,15 +31,60 @@ class _NoteEditorState extends State<NoteEditor> {
   Future<void> _saveNote() async {
     final notesBox = Hive.box<Note>('notes');
 
-    widget.note.title =
-    _titleController.text.isEmpty ? "UNTITLED" : _titleController.text;
+    widget.note.title = _titleController.text.isEmpty
+        ? "UNTITLED"
+        : _titleController.text;
     widget.note.content = _contentController.text;
     widget.note.date = DateTime.now();
 
+    // ✅ Save locally with Hive
     if (widget.isNew) {
-      await notesBox.add(widget.note); // add new
+      await notesBox.add(widget.note);
     } else {
-      await widget.note.save(); // update existing
+      await widget.note.save();
+    }
+
+    // ✅ Get current user (required for Firestore path)
+    final user = _auth.currentUser;
+    if (user == null) {
+      print("⚠️ No logged-in user — note saved locally only.");
+      Navigator.pop(context);
+      return;
+    }
+
+    // ✅ Firestore data structure
+    final noteData = {
+      'title': widget.note.title,
+      'content': widget.note.content,
+      'date': widget.note.date.toIso8601String(),
+      'isPinned': widget.note.isPinned,
+    };
+
+    try {
+      final userNotesRef = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('notes');
+
+      if (widget.isNew) {
+        // ➕ Add new note
+        await userNotesRef.add(noteData);
+      } else {
+        // 🔄 Update existing note if possible
+        final query = await userNotesRef
+            .where('title', isEqualTo: widget.note.title)
+            .get();
+
+        if (query.docs.isNotEmpty) {
+          await query.docs.first.reference.update(noteData);
+        } else {
+          await userNotesRef.add(noteData);
+        }
+      }
+
+      print("✅ Note saved to Firestore under user ${user.uid}");
+    } catch (e) {
+      print("❌ Firestore save error: $e");
     }
 
     Navigator.pop(context);
@@ -44,7 +94,7 @@ class _NoteEditorState extends State<NoteEditor> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        await _saveNote(); // 👈 auto-save when pressing back
+        await _saveNote();
         return true;
       },
       child: Scaffold(
@@ -52,13 +102,13 @@ class _NoteEditorState extends State<NoteEditor> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: Text(widget.isNew ? "NEW NOTE" : "EDIT NOTE", style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-
+          title: Text(
+            widget.isNew ? "NEW NOTE" : "EDIT NOTE",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          ),
-
           actions: [
             TextButton(
               onPressed: _saveNote,
@@ -67,10 +117,9 @@ class _NoteEditorState extends State<NoteEditor> {
                 style: TextStyle(
                   color: Color.fromRGBO(183, 151, 1, 1),
                   fontSize: 20,
-
                 ),
               ),
-            )
+            ),
           ],
         ),
         body: Padding(
@@ -110,4 +159,3 @@ class _NoteEditorState extends State<NoteEditor> {
     );
   }
 }
-

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -15,7 +17,71 @@ class NotesScreen extends StatefulWidget {
 
 class _NotesScreenState extends State<NotesScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String query = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _syncNotesFromFirestore();
+  }
+
+  /// 🔄 Fetch notes from Firestore and cache into Hive
+  Future<void> _syncNotesFromFirestore() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final notesBox = Hive.box<Note>('notes');
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('notes')
+        .get();
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final title = data['title'] ?? 'Untitled';
+      final content = data['content'] ?? '';
+      final date = DateTime.tryParse(data['date'] ?? '') ?? DateTime.now();
+      final isPinned = data['isPinned'] ?? false;
+
+      final existingNote = notesBox.values.firstWhere(
+        (n) => n.title == title && n.content == content,
+        orElse: () => Note(title: '', content: '', date: DateTime.now()),
+      );
+
+      if (existingNote.title.isEmpty) {
+        await notesBox.add(
+          Note(title: title, content: content, date: date, isPinned: isPinned),
+        );
+      }
+    }
+  }
+
+  /// ❌ Delete note from Firestore
+  Future<void> _deleteNoteFromFirestore(Note note) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final notesRef = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('notes');
+
+      final querySnapshot = await notesRef
+          .where('title', isEqualTo: note.title)
+          .where('content', isEqualTo: note.content)
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error deleting note from Firestore: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,27 +90,24 @@ class _NotesScreenState extends State<NotesScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // ✅ Base background color
+          // ✅ Background
           Container(color: const Color.fromRGBO(35, 82, 158, 1)),
-
-          // ✅ Noise texture overlay
           Positioned.fill(
             child: Opacity(
-              opacity: 1, // controls intensity of texture
+              opacity: 1,
               child: Image.asset(
-                'assets/images/noise.png', // make sure this file exists
-                repeat: ImageRepeat.repeat, // tiles across screen
+                'assets/images/noise.png',
+                repeat: ImageRepeat.repeat,
               ),
             ),
           ),
 
-          // ✅ Foreground content
+          // ✅ Foreground
           ValueListenableBuilder(
             valueListenable: notesBox.listenable(),
             builder: (context, Box<Note> box, _) {
               final allNotes = box.values.toList();
 
-              // Filter + sort
               final notes =
                   allNotes.where((note) {
                     final lowerQuery = query.toLowerCase();
@@ -58,7 +121,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
               return Column(
                 children: [
-                  // 🔎 Search bar
+                  // 🔎 Search Bar
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: TextField(
@@ -97,7 +160,7 @@ class _NotesScreenState extends State<NotesScreen> {
                         itemCount: notes.length + 1,
                         itemBuilder: (context, index) {
                           if (index == 0) {
-                            // ➕ Add Note
+                            // ➕ Add Note button
                             return GestureDetector(
                               onTap: () async {
                                 final newNote = await Navigator.push(
@@ -136,6 +199,7 @@ class _NotesScreenState extends State<NotesScreen> {
                           }
 
                           final note = notes[index - 1];
+
                           return GestureDetector(
                             onTap: () async {
                               final editedNote = await Navigator.push(
@@ -151,125 +215,193 @@ class _NotesScreenState extends State<NotesScreen> {
                                 note.save();
                               }
                             },
-                            child: Container(
-                              height: 300,
-                              decoration: BoxDecoration(
-                                color: Color.fromRGBO(22, 44, 85, 1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.all(15),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Title + menu
-                                  Row(
+                            child: Stack(
+                              children: [
+                                // Note card
+                                Container(
+                                  height: 300,
+                                  decoration: BoxDecoration(
+                                    color: const Color.fromRGBO(22, 44, 85, 1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.all(15),
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          note.title,
-                                          style: const TextStyle(
-                                            color: Color.fromRGBO(
-                                              183,
-                                              151,
-                                              1,
-                                              1,
+                                      // Title + menu
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              note.title,
+                                              style: const TextStyle(
+                                                color: Color.fromRGBO(
+                                                  183,
+                                                  151,
+                                                  1,
+                                                  1,
+                                                ),
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          Align(
+                                            alignment: Alignment.topRight,
+                                            child: PopupMenuButton<String>(
+                                              color: const Color.fromRGBO(
+                                                22,
+                                                44,
+                                                85,
+                                                1,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.more_horiz,
+                                                color: Colors.white70,
+                                              ),
+                                              onSelected: (value) async {
+                                                if (value == 'delete') {
+                                                  await _deleteNoteFromFirestore(
+                                                    note,
+                                                  );
+                                                  await note.delete();
+                                                } else if (value == 'pin') {
+                                                  final user =
+                                                      _auth.currentUser;
+                                                  if (user == null) return;
+
+                                                  note.isPinned =
+                                                      !note.isPinned;
+                                                  note.save();
+                                                  setState(() {});
+
+                                                  // 🔄 Update Firestore document
+                                                  try {
+                                                    final notesRef = _firestore
+                                                        .collection('users')
+                                                        .doc(user.uid)
+                                                        .collection('notes');
+
+                                                    final querySnapshot =
+                                                        await notesRef
+                                                            .where(
+                                                              'title',
+                                                              isEqualTo:
+                                                                  note.title,
+                                                            )
+                                                            .where(
+                                                              'content',
+                                                              isEqualTo:
+                                                                  note.content,
+                                                            )
+                                                            .get();
+
+                                                    for (var doc
+                                                        in querySnapshot.docs) {
+                                                      await doc.reference
+                                                          .update({
+                                                            'isPinned':
+                                                                note.isPinned,
+                                                          });
+                                                    }
+                                                  } catch (e) {
+                                                    debugPrint(
+                                                      "⚠️ Error updating pin status in Firestore: $e",
+                                                    );
+                                                  }
+                                                } else if (value == 'share') {
+                                                  Share.share(
+                                                    "${note.title}\n\n${note.content}",
+                                                  );
+                                                }
+                                              },
+                                              itemBuilder: (context) => [
+                                                PopupMenuItem(
+                                                  value: 'pin',
+                                                  child: Text(
+                                                    note.isPinned
+                                                        ? "Unpin"
+                                                        : "Pin",
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const PopupMenuItem(
+                                                  value: 'share',
+                                                  child: Text(
+                                                    "Share",
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text(
+                                                    "Delete",
+                                                    style: TextStyle(
+                                                      color: Colors.redAccent,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        "${note.date.toLocal().toString().split(' ')[0]}",
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 12,
                                         ),
                                       ),
-                                      Align(
-                                        alignment: Alignment.topRight,
-                                        child: PopupMenuButton<String>(
-                                          color: const Color.fromRGBO(
-                                            22,
-                                            44,
-                                            85,
-                                            1,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          icon: const Icon(
-                                            Icons.more_horiz,
+                                      const SizedBox(height: 6),
+                                      Expanded(
+                                        child: Text(
+                                          note.content,
+                                          overflow: TextOverflow.fade,
+                                          style: const TextStyle(
                                             color: Colors.white70,
+                                            fontSize: 16,
+                                            height: 1.3,
                                           ),
-                                          onSelected: (value) {
-                                            if (value == 'delete') {
-                                              note.delete();
-                                            } else if (value == 'pin') {
-                                              note.isPinned = !note.isPinned;
-                                              note.save();
-                                              setState(() {});
-                                            } else if (value == 'share') {
-                                              Share.share(
-                                                "${note.title}\n\n${note.content}",
-                                              );
-                                            }
-                                          },
-                                          itemBuilder: (context) => [
-                                            PopupMenuItem(
-                                              value: 'pin',
-                                              child: Text(
-                                                note.isPinned ? "Unpin" : "Pin",
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'share',
-                                              child: Text(
-                                                "Share",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'delete',
-                                              child: Text(
-                                                "Delete",
-                                                style: TextStyle(
-                                                  color: Colors.redAccent,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
+                                ),
 
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    "${note.date.toLocal().toString().split(' ')[0]}",
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Expanded(
-                                    child: Text(
-                                      note.content,
-                                      overflow: TextOverflow.fade,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
-                                        height: 1.3,
+                                // 📌 Pinned indicator (visible when pinned)
+                                if (note.isPinned)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.yellow.withOpacity(0.9),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.all(4),
+                                      child: const Icon(
+                                        Icons.push_pin,
+                                        size: 18,
+                                        color: Colors.black87,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           );
                         },
