@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:proj1/pages/forgot_password.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase/auth_service.dart';
 
@@ -39,8 +40,23 @@ class _AuthenticationState extends State<Authentication> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Stream to track auth state
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  @override
+  void initState() {
+    super.initState();
+    _checkRememberMe();
+  }
+
+  // ✅ Check remember me on app start
+  Future<void> _checkRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+
+    if (rememberMe && _auth.currentUser != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.go('/home');
+      });
+    }
+  }
 
   // 🔹 Handle Login
   Future<void> _handleLogin() async {
@@ -56,18 +72,34 @@ class _AuthenticationState extends State<Authentication> {
         _loginPasswordController.text.trim(),
       );
 
-      setState(() => _loading = false);
+      if (user != null) {
+        // Save "remember me" preference
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('remember_me', isChecked);
 
-      if (user == null) {
-        setState(() => _error = "Login failed. Please check your credentials.");
-      } else {
-        // ✅ Navigate to home if successful
+        setState(() => _loading = false);
         context.go('/home');
+      } else {
+        setState(() {
+          _loading = false;
+          _error = "Incorrect email or password.";
+        });
       }
-    } catch (e) {
+    } on FirebaseAuthException catch (e) {
       setState(() {
         _loading = false;
-        _error = "An error occurred: ${e.toString()}";
+        if (e.code == 'user-not-found' || e.code == 'wrong-password') {
+          _error = "Incorrect email or password.";
+        } else if (e.code == 'invalid-email') {
+          _error = "Invalid email format.";
+        } else {
+          _error = "Incorrect Email or Password.";
+        }
+      });
+    } catch (_) {
+      setState(() {
+        _loading = false;
+        _error = "Incorrect Email or Password.";
       });
     }
   }
@@ -80,7 +112,6 @@ class _AuthenticationState extends State<Authentication> {
 
     final authService = Provider.of<AuthService>(context, listen: false);
 
-    // ✅ Validate password match
     if (_registerPasswordController.text.trim() !=
         _registerConfirmPasswordController.text.trim()) {
       setState(() {
@@ -105,20 +136,16 @@ class _AuthenticationState extends State<Authentication> {
         return;
       }
 
-      // ✅ Stop loading first
       setState(() => _loading = false);
 
-      // ✅ Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Registration successful! Please log in."),
         ),
       );
 
-      // ✅ Go back to login screen
       setState(() => showLogin = true);
     } catch (e) {
-      // ✅ Always stop loader and show error
       setState(() {
         _loading = false;
         _error = "Error: ${e.toString()}";
@@ -260,6 +287,16 @@ class _AuthenticationState extends State<Authentication> {
             style: _inputTextStyle(),
           ),
           const SizedBox(height: 5),
+          if (_error != null) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _error!,
+                style: const TextStyle(color: Colors.red, fontSize: 14),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -293,10 +330,6 @@ class _AuthenticationState extends State<Authentication> {
           _loading
               ? const CircularProgressIndicator()
               : _actionButton("LOG IN", _handleLogin),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-          ],
           const SizedBox(height: 20),
           _dividerWithLabel("OTHER"),
           const SizedBox(height: 10),
@@ -312,9 +345,8 @@ class _AuthenticationState extends State<Authentication> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            // Email
             Container(
-              width: double.infinity, // expand to full width
+              width: double.infinity,
               margin: const EdgeInsets.symmetric(vertical: 5),
               child: TextField(
                 controller: _registerEmailController,
@@ -322,8 +354,6 @@ class _AuthenticationState extends State<Authentication> {
                 style: _inputTextStyle(),
               ),
             ),
-
-            // Username
             Container(
               width: double.infinity,
               margin: const EdgeInsets.symmetric(vertical: 5),
@@ -336,8 +366,6 @@ class _AuthenticationState extends State<Authentication> {
                 style: _inputTextStyle(),
               ),
             ),
-
-            // Password
             Container(
               width: double.infinity,
               margin: const EdgeInsets.symmetric(vertical: 5),
@@ -352,8 +380,6 @@ class _AuthenticationState extends State<Authentication> {
                 style: _inputTextStyle(),
               ),
             ),
-
-            // Confirm Password
             Container(
               width: double.infinity,
               margin: const EdgeInsets.symmetric(vertical: 5),
@@ -368,19 +394,8 @@ class _AuthenticationState extends State<Authentication> {
                 style: _inputTextStyle(),
               ),
             ),
-            Row(
-              children: [
-                Checkbox(
-                  value: isChecked,
-                  onChanged: (value) => setState(() => isChecked = value!),
-                ),
-                const Text(
-                  "Remember Me",
-                  style: TextStyle(color: Color.fromRGBO(15, 29, 56, 0.5)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
+
+            const SizedBox(height: 10),
             _loading
                 ? const CircularProgressIndicator()
                 : _actionButton("SIGN UP", _register),
@@ -431,8 +446,8 @@ class _AuthenticationState extends State<Authentication> {
 
   Widget _actionButton(String label, VoidCallback onPressed) {
     return SizedBox(
-      width: 300, // Set your desired width
-      height: 60, // Set your desired height
+      width: 300,
+      height: 60,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(

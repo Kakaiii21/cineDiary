@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../firebase/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -220,11 +223,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 10),
                   ElevatedButton(
                     onPressed: () async {
-                      await FirebaseAuth.instance.signOut();
-                      if (context.mounted)
-                        Navigator.of(
-                          context,
-                        ).pushNamedAndRemoveUntil('/', (_) => false);
+                      try {
+                        await AuthService().signOut();
+                        // Use GoRouter to navigate to login screen
+                        if (context.mounted) context.go('/');
+                      } catch (e) {
+                        debugPrint("Logout error: $e");
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromRGBO(43, 82, 158, 1),
