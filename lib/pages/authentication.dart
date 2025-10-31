@@ -492,10 +492,33 @@ class _AuthenticationState extends State<Authentication> {
   }
 
   Widget _socialIcons() {
+    final authService = Provider.of<AuthService>(context, listen: false);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Image.asset('assets/images/ggl.png', width: 50, height: 50),
+        // 🔹 Google Button
+        GestureDetector(
+          onTap: () async {
+            setState(() => _loading = true);
+            try {
+              final user = await authService.signInWithGoogle();
+              if (user != null) {
+                context.go('/home');
+              }
+            } catch (e) {
+              debugPrint("Google login error: $e");
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Google sign-in failed.")),
+              );
+            } finally {
+              setState(() => _loading = false);
+            }
+          },
+          child: Image.asset('assets/images/ggl.png', width: 50, height: 50),
+        ),
+
+        // (Optional) Future-proof placeholders for Facebook/Twitter
         Image.asset('assets/images/fb.png', width: 40, height: 40),
         Image.asset('assets/images/x.png', width: 40, height: 40),
       ],

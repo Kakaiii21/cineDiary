@@ -63,6 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '20680886099',
     projectId: 'cinediary-af776',
     storageBucket: 'cinediary-af776.firebasestorage.app',
+    androidClientId: '20680886099-5fi8iamp77fu16dmpjcg88079j1oq39i.apps.googleusercontent.com',
+    iosClientId: '20680886099-e61jgjhjnns04dhfijg60822rd2egmfe.apps.googleusercontent.com',
     iosBundleId: 'com.example.proj1',
   );
 
@@ -72,6 +74,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '20680886099',
     projectId: 'cinediary-af776',
     storageBucket: 'cinediary-af776.firebasestorage.app',
+    androidClientId: '20680886099-5fi8iamp77fu16dmpjcg88079j1oq39i.apps.googleusercontent.com',
+    iosClientId: '20680886099-e61jgjhjnns04dhfijg60822rd2egmfe.apps.googleusercontent.com',
     iosBundleId: 'com.example.proj1',
   );
 
@@ -83,4 +87,5 @@ class DefaultFirebaseOptions {
     authDomain: 'cinediary-af776.firebaseapp.com',
     storageBucket: 'cinediary-af776.firebasestorage.app',
   );
+
 }
