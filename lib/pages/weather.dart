@@ -1,4 +1,3 @@
-// ignore_for_file: use_build_context_synchronously
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,9 +6,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:proj1/models/weather_service.dart';
 
 import '../models/weather_model.dart';
+import '../models/weather_service.dart';
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
@@ -18,75 +17,95 @@ class WeatherScreen extends StatefulWidget {
   State<WeatherScreen> createState() => _WeatherScreenState();
 }
 
-class _WeatherScreenState extends State<WeatherScreen> {
+class _WeatherScreenState extends State<WeatherScreen>
+    with WidgetsBindingObserver {
   final WeatherService weatherService = WeatherService();
   final TextEditingController controller = TextEditingController();
 
   Future<Weather>? weatherFuture;
-  Weather? currentWeather;
   List<Map<String, dynamic>> hourlyForecast = [];
   List<Map<String, dynamic>> weeklyForecast = [];
 
-  final String apiKey = '6706051f07711ea899d81158b8eb1ccc'; // ✅ your API key
+  final String apiKey = '6706051f07711ea899d81158b8eb1ccc';
 
   @override
   void initState() {
     super.initState();
-    _getUserLocation();
+    WidgetsBinding.instance.addObserver(this); // 👈 Add observer
+    _handlePermissionAndFetchWeather();
   }
 
-  Future<void> _getUserLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _showPopup('Location Disabled', 'Please enable location services.');
-      return;
-    }
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 👈 Remove observer
+    super.dispose();
+  }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        _showPopup(
-          'Permission Denied',
-          'Location permission is required to show weather for your area.',
-        );
+  // 👇 Automatically retry when app resumes from background (e.g. after settings)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _handlePermissionAndFetchWeather();
+    }
+  }
+
+  Future<void> _handlePermissionAndFetchWeather() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        await Geolocator.openLocationSettings();
         return;
       }
-    }
 
-    if (permission == LocationPermission.deniedForever) {
-      _showPopup(
-        'Permission Permanently Denied',
-        'Please enable location permission manually in settings.',
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          return;
+        }
+      }
+
+      // ✅ Fast and accurate
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
       );
-      return;
-    }
 
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-
-    List<Placemark> placemarks = await placemarkFromCoordinates(
-      position.latitude,
-      position.longitude,
-    );
-
-    if (placemarks.isNotEmpty) {
-      String city = placemarks.first.locality ?? 'Unknown';
-      controller.text = city;
-      setState(() {
-        weatherFuture = weatherService.fetchWeather(city);
-      });
-
-      hourlyForecast = await fetchHourlyWeather(
+      final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );
-      weeklyForecast = await fetchWeeklyWeather(
-        position.latitude,
-        position.longitude,
-      );
-      setState(() {});
+
+      if (placemarks.isNotEmpty) {
+        final city = placemarks.first.locality ?? 'Unknown';
+        controller.text = city;
+
+        // Fetch all data in parallel — no waiting delay
+        final weatherFutureLocal = weatherService.fetchWeather(city);
+        final hourlyFuture = fetchHourlyWeather(
+          position.latitude,
+          position.longitude,
+        );
+        final weeklyFuture = fetchWeeklyWeather(
+          position.latitude,
+          position.longitude,
+        );
+
+        final results = await Future.wait([
+          weatherFutureLocal,
+          hourlyFuture,
+          weeklyFuture,
+        ]);
+
+        setState(() {
+          weatherFuture = Future.value(results[0] as Weather);
+          hourlyForecast = results[1] as List<Map<String, dynamic>>;
+          weeklyForecast = results[2] as List<Map<String, dynamic>>;
+        });
+      }
+    } catch (e) {
+      debugPrint('Location error: $e');
     }
   }
 
@@ -99,15 +118,26 @@ class _WeatherScreenState extends State<WeatherScreen> {
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            onPressed: () async {
+              Navigator.pop(context);
+              if (title.contains('Disabled')) {
+                // Open device location settings
+                await Geolocator.openLocationSettings();
+              } else if (title.contains('Permanently Denied')) {
+                // Open app settings for permissions
+                await Geolocator.openAppSettings();
+              }
+              // Retry fetching after user enables location
+              _handlePermissionAndFetchWeather();
+            },
+            child: const Text('Open Settings'),
           ),
         ],
       ),
     );
   }
 
-  // ✅ Hourly (24-hour) forecast from 2.5 API
+  // ✅ Remove the duplicate function — only keep ONE of these:
   Future<List<Map<String, dynamic>>> fetchHourlyWeather(
     double lat,
     double lon,
@@ -118,69 +148,69 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      List forecasts = data['list'].take(8).toList();
+      final forecasts = (data['list'] as List)
+          .take(8)
+          .toList(); // 24-hour (3h interval)
       return forecasts.map<Map<String, dynamic>>((item) {
         return {
-          'time': item['dt_txt'],
-          'temp': item['main']['temp'],
-          'icon': item['weather'][0]['icon'],
+          'time': item['dt_txt'] ?? '',
+          'temp': (item['main']['temp'] as num).toDouble(),
+          'icon': item['weather'][0]['icon'] ?? '01d',
         };
       }).toList();
     } else {
-      throw Exception('Failed to load hourly weather data');
+      debugPrint('Hourly request failed: ${response.body}');
+      return [];
     }
   }
 
-  // ✅ Weekly forecast (7-day) from One Call 3.0 API
+  // ✅ Add this missing function:
   Future<List<Map<String, dynamic>>> fetchWeeklyWeather(
     double lat,
     double lon,
   ) async {
     final url =
         'https://api.openweathermap.org/data/2.5/forecast?lat=$lat&lon=$lon&appid=$apiKey&units=metric';
-
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      List forecasts = data['list'];
+      final forecasts = data['list'] as List;
 
-      Map<String, List<double>> dailyTemps = {};
-      Map<String, String> dailyIcons = {};
+      final Map<String, List<double>> tempsByDay = {};
+      final Map<String, String> iconByDay = {};
 
       for (var item in forecasts) {
-        DateTime date = DateTime.parse(item['dt_txt']);
-        String day = DateFormat('yyyy-MM-dd').format(date);
-        double temp = item['main']['temp'];
-        String icon = item['weather'][0]['icon'];
+        final date = DateTime.parse(item['dt_txt']);
+        final day = DateFormat('yyyy-MM-dd').format(date);
+        final temp = (item['main']['temp'] as num).toDouble();
+        final icon = item['weather'][0]['icon'] as String;
 
-        dailyTemps.putIfAbsent(day, () => []).add(temp);
-        dailyIcons[day] = icon;
+        tempsByDay.putIfAbsent(day, () => []).add(temp);
+        iconByDay[day] = icon;
       }
 
-      List<Map<String, dynamic>> weekly = [];
-      int count = 0;
-      for (var entry in dailyTemps.entries) {
-        if (count >= 7) break; // Only first 7 days
-        var temps = entry.value;
-        weekly.add({
+      final List<Map<String, dynamic>> weekly = tempsByDay.entries.map((entry) {
+        final temps = entry.value;
+        return {
           'date': DateTime.parse(entry.key),
           'tempMin': temps.reduce((a, b) => a < b ? a : b),
           'tempMax': temps.reduce((a, b) => a > b ? a : b),
-          'icon': dailyIcons[entry.key],
-        });
-        count++;
-      }
+          'icon': iconByDay[entry.key],
+        };
+      }).toList();
 
-      return weekly;
+      weekly.sort((a, b) => a['date'].compareTo(b['date']));
+      return weekly.take(5).toList(); // show 5 days
     } else {
-      throw Exception('Failed to load weekly weather data');
+      debugPrint('Weekly request failed: ${response.body}');
+      return [];
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    String formattedDate = DateFormat('dd MMMM, EEEE').format(DateTime.now());
+    final formattedDate = DateFormat('dd MMMM, EEEE').format(DateTime.now());
 
     return Scaffold(
       backgroundColor: const Color.fromRGBO(15, 29, 56, 1),
@@ -207,8 +237,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
                       );
                     } else if (snapshot.hasData) {
                       final weather = snapshot.data!;
-                      currentWeather = weather;
-
                       return Column(
                         children: [
                           _buildCurrentWeather(weather, formattedDate),
@@ -217,14 +245,12 @@ class _WeatherScreenState extends State<WeatherScreen> {
                         ],
                       );
                     }
-                    return Container();
+                    return const SizedBox();
                   },
-                ),
-              if (weatherFuture == null)
+                )
+              else
                 SizedBox(
-                  height: MediaQuery.of(
-                    context,
-                  ).size.height, // full screen height
+                  height: MediaQuery.of(context).size.height,
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -347,8 +373,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: hourlyForecast.map((hour) {
-                    DateTime time = DateTime.parse(hour['time']);
-                    String formattedTime =
+                    final time = DateTime.parse(hour['time']);
+                    final formattedTime =
                         '${time.hour.toString().padLeft(2, '0')}:00';
                     return Container(
                       height: 140,
@@ -422,7 +448,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
             const SizedBox(height: 10),
             Column(
               children: weeklyForecast.map((day) {
-                String dayName = DateFormat('EEEE').format(day['date']);
+                final dayName = DateFormat('EEEE').format(day['date']);
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(
