@@ -100,13 +100,6 @@ class _MainPageState extends State<MainPage> {
                 ),
               ),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.search),
-                color: Colors.white,
-                onPressed: () {},
-              ),
-            ],
           ),
 
           drawer: Drawer(

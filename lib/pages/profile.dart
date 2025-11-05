@@ -260,6 +260,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Text(
                       "Discard",
                       style: TextStyle(
+                        color: Colors.white,
+
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
@@ -278,6 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Text(
                       "Save",
                       style: TextStyle(
+                        color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),

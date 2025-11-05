@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -19,12 +20,14 @@ class _NotesScreenState extends State<NotesScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseDatabase _realtimeDB = FirebaseDatabase.instance;
   String query = "";
 
   @override
   void initState() {
     super.initState();
     _syncNotesFromFirestore();
+    _syncNotesFromRealtimeDB();
   }
 
   /// 🔄 Fetch notes from Firestore and cache into Hive
@@ -41,21 +44,153 @@ class _NotesScreenState extends State<NotesScreen> {
 
     for (var doc in snapshot.docs) {
       final data = doc.data();
+      final id = data['id'] ?? doc.id;
       final title = data['title'] ?? 'Untitled';
       final content = data['content'] ?? '';
       final date = DateTime.tryParse(data['date'] ?? '') ?? DateTime.now();
       final isPinned = data['isPinned'] ?? false;
 
       final existingNote = notesBox.values.firstWhere(
-        (n) => n.title == title && n.content == content,
-        orElse: () => Note(title: '', content: '', date: DateTime.now()),
+        (n) => n.id == id,
+        orElse: () =>
+            Note(title: '', content: '', date: DateTime.now(), id: ''),
       );
 
-      if (existingNote.title.isEmpty) {
+      if (existingNote.id.isEmpty) {
         await notesBox.add(
-          Note(title: title, content: content, date: date, isPinned: isPinned),
+          Note(
+            title: title,
+            content: content,
+            date: date,
+            isPinned: isPinned,
+            id: id,
+          ),
         );
       }
+    }
+  }
+
+  /// 🔄 Fetch notes from Realtime Database and cache into Hive
+  Future<void> _syncNotesFromRealtimeDB() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final notesBox = Hive.box<Note>('notes');
+    final ref = _realtimeDB.ref('users/${user.uid}/notes');
+
+    try {
+      final snapshot = await ref.get();
+      if (snapshot.exists) {
+        final notesData = Map<String, dynamic>.from(snapshot.value as Map);
+
+        for (var entry in notesData.entries) {
+          final data = Map<String, dynamic>.from(entry.value as Map);
+          final title = data['title'] ?? 'Untitled';
+          final content = data['content'] ?? '';
+          final date = DateTime.tryParse(data['date'] ?? '') ?? DateTime.now();
+          final isPinned = data['isPinned'] ?? false;
+
+          final existingNote = notesBox.values.firstWhere(
+            (n) => n.title == title && n.content == content,
+            orElse: () => Note(title: '', content: '', date: DateTime.now()),
+          );
+
+          if (existingNote.title.isEmpty) {
+            await notesBox.add(
+              Note(
+                title: title,
+                content: content,
+                date: date,
+                isPinned: isPinned,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error syncing from Realtime Database: $e");
+    }
+  }
+
+  /// ➕ Save new note to both databases
+  Future<void> _saveNoteToBothDatabases(Note note) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final noteData = {
+      'title': note.title,
+      'content': note.content,
+      'date': note.date.toIso8601String(),
+      'isPinned': note.isPinned,
+    };
+
+    // Save to Firestore
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('notes')
+          .add(noteData);
+    } catch (e) {
+      debugPrint("⚠️ Error saving to Firestore: $e");
+    }
+
+    // Save to Realtime Database
+    try {
+      await _realtimeDB.ref('users/${user.uid}/notes').push().set(noteData);
+    } catch (e) {
+      debugPrint("⚠️ Error saving to Realtime Database: $e");
+    }
+  }
+
+  /// 🔄 Update note in both databases
+  Future<void> _updateNoteInBothDatabases(Note note) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final noteData = {
+      'title': note.title,
+      'content': note.content,
+      'date': note.date.toIso8601String(),
+      'isPinned': note.isPinned,
+    };
+
+    // Update in Firestore
+    try {
+      final notesRef = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('notes');
+
+      final querySnapshot = await notesRef
+          .where('title', isEqualTo: note.title)
+          .where('content', isEqualTo: note.content)
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        await doc.reference.update(noteData);
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error updating in Firestore: $e");
+    }
+
+    // Update in Realtime Database
+    try {
+      final ref = _realtimeDB.ref('users/${user.uid}/notes');
+      final snapshot = await ref.get();
+
+      if (snapshot.exists) {
+        final notesData = Map<String, dynamic>.from(snapshot.value as Map);
+
+        for (var entry in notesData.entries) {
+          final data = Map<String, dynamic>.from(entry.value as Map);
+          if (data['title'] == note.title && data['content'] == note.content) {
+            await ref.child(entry.key).update(noteData);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error updating in Realtime Database: $e");
     }
   }
 
@@ -80,6 +215,78 @@ class _NotesScreenState extends State<NotesScreen> {
       }
     } catch (e) {
       debugPrint("⚠️ Error deleting note from Firestore: $e");
+    }
+  }
+
+  /// ❌ Delete note from Realtime Database
+  Future<void> _deleteNoteFromRealtimeDB(Note note) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final ref = _realtimeDB.ref('users/${user.uid}/notes');
+      final snapshot = await ref.get();
+
+      if (snapshot.exists) {
+        final notesData = Map<String, dynamic>.from(snapshot.value as Map);
+
+        for (var entry in notesData.entries) {
+          final data = Map<String, dynamic>.from(entry.value as Map);
+          if (data['title'] == note.title && data['content'] == note.content) {
+            await ref.child(entry.key).remove();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error deleting note from Realtime Database: $e");
+    }
+  }
+
+  /// 📌 Update pin status in both databases
+  Future<void> _updatePinStatus(Note note) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    note.isPinned = !note.isPinned;
+    note.save();
+    setState(() {});
+
+    // Update in Firestore
+    try {
+      final notesRef = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('notes');
+
+      final querySnapshot = await notesRef
+          .where('title', isEqualTo: note.title)
+          .where('content', isEqualTo: note.content)
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        await doc.reference.update({'isPinned': note.isPinned});
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error updating pin in Firestore: $e");
+    }
+
+    // Update in Realtime Database
+    try {
+      final ref = _realtimeDB.ref('users/${user.uid}/notes');
+      final snapshot = await ref.get();
+
+      if (snapshot.exists) {
+        final notesData = Map<String, dynamic>.from(snapshot.value as Map);
+
+        for (var entry in notesData.entries) {
+          final data = Map<String, dynamic>.from(entry.value as Map);
+          if (data['title'] == note.title && data['content'] == note.content) {
+            await ref.child(entry.key).update({'isPinned': note.isPinned});
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error updating pin in Realtime Database: $e");
     }
   }
 
@@ -163,7 +370,7 @@ class _NotesScreenState extends State<NotesScreen> {
                             // ➕ Add Note button
                             return GestureDetector(
                               onTap: () async {
-                                final newNote = await Navigator.push(
+                                await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => NoteEditor(
@@ -176,9 +383,7 @@ class _NotesScreenState extends State<NotesScreen> {
                                     ),
                                   ),
                                 );
-                                if (newNote != null) {
-                                  box.add(newNote);
-                                }
+                                // Note: NoteEditor handles saving to Hive + both databases
                               },
                               child: Container(
                                 width: 150,
@@ -202,18 +407,13 @@ class _NotesScreenState extends State<NotesScreen> {
 
                           return GestureDetector(
                             onTap: () async {
-                              final editedNote = await Navigator.push(
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => NoteEditor(note: note),
                                 ),
                               );
-                              if (editedNote != null) {
-                                note.title = editedNote.title;
-                                note.content = editedNote.content;
-                                note.date = editedNote.date;
-                                note.save();
-                              }
+                              // Note: NoteEditor handles saving to Hive + both databases
                             },
                             child: Stack(
                               children: [
@@ -273,51 +473,12 @@ class _NotesScreenState extends State<NotesScreen> {
                                                   await _deleteNoteFromFirestore(
                                                     note,
                                                   );
+                                                  await _deleteNoteFromRealtimeDB(
+                                                    note,
+                                                  );
                                                   await note.delete();
                                                 } else if (value == 'pin') {
-                                                  final user =
-                                                      _auth.currentUser;
-                                                  if (user == null) return;
-
-                                                  note.isPinned =
-                                                      !note.isPinned;
-                                                  note.save();
-                                                  setState(() {});
-
-                                                  // 🔄 Update Firestore document
-                                                  try {
-                                                    final notesRef = _firestore
-                                                        .collection('users')
-                                                        .doc(user.uid)
-                                                        .collection('notes');
-
-                                                    final querySnapshot =
-                                                        await notesRef
-                                                            .where(
-                                                              'title',
-                                                              isEqualTo:
-                                                                  note.title,
-                                                            )
-                                                            .where(
-                                                              'content',
-                                                              isEqualTo:
-                                                                  note.content,
-                                                            )
-                                                            .get();
-
-                                                    for (var doc
-                                                        in querySnapshot.docs) {
-                                                      await doc.reference
-                                                          .update({
-                                                            'isPinned':
-                                                                note.isPinned,
-                                                          });
-                                                    }
-                                                  } catch (e) {
-                                                    debugPrint(
-                                                      "⚠️ Error updating pin status in Firestore: $e",
-                                                    );
-                                                  }
+                                                  await _updatePinStatus(note);
                                                 } else if (value == 'share') {
                                                   Share.share(
                                                     "${note.title}\n\n${note.content}",
