@@ -242,6 +242,58 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  /// 🗑️ Show delete confirmation dialog
+  Future<void> _showDeleteConfirmation(Note note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color.fromRGBO(22, 44, 85, 1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: const Text(
+            'Delete Note?',
+            style: TextStyle(
+              color: Color.fromRGBO(183, 151, 1, 1),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to delete "${note.title}"? This action cannot be undone.',
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Delete',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _deleteNoteFromFirestore(note);
+      await _deleteNoteFromRealtimeDB(note);
+      await note.delete();
+    }
+  }
+
   /// 📌 Update pin status in both databases
   Future<void> _updatePinStatus(Note note) async {
     final user = _auth.currentUser;
@@ -383,7 +435,6 @@ class _NotesScreenState extends State<NotesScreen> {
                                     ),
                                   ),
                                 );
-                                // Note: NoteEditor handles saving to Hive + both databases
                               },
                               child: Container(
                                 width: 150,
@@ -413,7 +464,6 @@ class _NotesScreenState extends State<NotesScreen> {
                                   builder: (_) => NoteEditor(note: note),
                                 ),
                               );
-                              // Note: NoteEditor handles saving to Hive + both databases
                             },
                             child: Stack(
                               children: [
@@ -470,13 +520,9 @@ class _NotesScreenState extends State<NotesScreen> {
                                               ),
                                               onSelected: (value) async {
                                                 if (value == 'delete') {
-                                                  await _deleteNoteFromFirestore(
+                                                  await _showDeleteConfirmation(
                                                     note,
                                                   );
-                                                  await _deleteNoteFromRealtimeDB(
-                                                    note,
-                                                  );
-                                                  await note.delete();
                                                 } else if (value == 'pin') {
                                                   await _updatePinStatus(note);
                                                 } else if (value == 'share') {

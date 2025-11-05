@@ -1,8 +1,10 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'newMovie.dart';
+
 import 'movie_detail.dart';
+import 'newMovie.dart';
 
 class MovieScreen extends StatefulWidget {
   const MovieScreen({super.key});
@@ -62,14 +64,30 @@ class _MovieScreenState extends State<MovieScreen> {
                       decoration: BoxDecoration(
                         color: const Color.fromRGBO(15, 29, 56, 1),
                         borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                              0.4,
+                            ), // Shadow color
+                            blurRadius: 5, // How soft the shadow is
+                            offset: const Offset(
+                              0,
+                              3,
+                            ), // Move shadow down a bit
+                            spreadRadius: 2, // How much it spreads
+                          ),
+                        ],
                       ),
+
                       child: const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add,
-                                size: 40,
-                                color: Color.fromRGBO(183, 151, 1, 1)),
+                            Icon(
+                              Icons.add,
+                              size: 40,
+                              color: Color.fromRGBO(183, 151, 1, 1),
+                            ),
                             SizedBox(height: 8),
                             Text(
                               "NEW MOVIE",
@@ -85,13 +103,30 @@ class _MovieScreenState extends State<MovieScreen> {
                     ),
                   ),
 
-                  // Library Sections
-                  ...groupedMovies.entries.map((entry) {
+                  // Library Sections with alternating backgrounds
+                  ...groupedMovies.entries.toList().asMap().entries.map((
+                    mapEntry,
+                  ) {
+                    int sectionIndex = mapEntry.key;
+                    var entry = mapEntry.value;
                     String libraryName = entry.key;
                     List libraryMovies = entry.value;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 24.0),
+                    // Alternate background color: every other section gets the darker color
+                    bool isAlternate = sectionIndex % 2 == 1;
+                    Color backgroundColor = isAlternate
+                        ? const Color.fromRGBO(
+                            46,
+                            63,
+                            96,
+                            0.4,
+                          ) // notice opacity = 0.4
+                        : Colors.transparent;
+
+                    return Container(
+                      color: backgroundColor,
+                      padding: const EdgeInsets.symmetric(vertical: 5.0),
+                      margin: const EdgeInsets.only(bottom: 2.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -148,19 +183,25 @@ class _MovieScreenState extends State<MovieScreen> {
                                         width: 130,
                                         height: 190,
                                         margin: const EdgeInsets.symmetric(
-                                            horizontal: 8),
+                                          horizontal: 8,
+                                        ),
                                         decoration: BoxDecoration(
-                                          borderRadius:
-                                          BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           image: DecorationImage(
-                                            image: (movie['poster'] != null &&
-                                                File(movie['poster'])
-                                                    .existsSync())
+                                            image:
+                                                (movie['poster'] != null &&
+                                                    File(
+                                                      movie['poster'],
+                                                    ).existsSync())
                                                 ? FileImage(
-                                                File(movie['poster']))
+                                                    File(movie['poster']),
+                                                  )
                                                 : const AssetImage(
-                                                "assets/placeholder.jpg")
-                                            as ImageProvider,
+                                                        "assets/placeholder.jpg",
+                                                      )
+                                                      as ImageProvider,
                                             fit: BoxFit.cover,
                                           ),
                                         ),
@@ -171,9 +212,10 @@ class _MovieScreenState extends State<MovieScreen> {
                                         child: Text(
                                           movie['title'] ?? "Untitled",
                                           style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold),
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
@@ -184,7 +226,7 @@ class _MovieScreenState extends State<MovieScreen> {
                                 );
                               },
                             ),
-                          )
+                          ),
                         ],
                       ),
                     );
