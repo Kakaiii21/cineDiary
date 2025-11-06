@@ -100,6 +100,13 @@ class _MainPageState extends State<MainPage> {
                 ),
               ),
             ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.search),
+                color: Colors.white,
+                onPressed: () {},
+              ),
+            ],
           ),
 
           drawer: Drawer(
@@ -247,28 +254,20 @@ class _MainPageState extends State<MainPage> {
             child: _pages[_selectedIndex],
           ),
 
-          // ✅ Transparent nav bar overlaying background
-          // ✅ Bottom Navigation with navbg.png kept
+          // Replace your bottomNavigationBar with this:
           bottomNavigationBar: Stack(
             alignment: Alignment.bottomCenter,
             children: [
-              // navbg.png background
+              // navbg.png background (now transparent)
               Container(
                 height: 100,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage('assets/images/navbg.png'),
                     fit: BoxFit.cover,
+                    opacity:
+                        0.8, // Optional: adjust transparency of the image itself
                   ),
-                  boxShadow: [
-                    // ✅ Add shadow here
-                    BoxShadow(
-                      color: Colors.black54, // shadow color
-                      offset: Offset(0, 30), // shadow direction (top side)
-                      blurRadius: 15, // softness
-                      spreadRadius: 5, // how wide shadow spreads
-                    ),
-                  ],
                 ),
               ),
 
@@ -311,7 +310,7 @@ class _MainPageState extends State<MainPage> {
                   ),
                   BottomNavigationBarItem(
                     icon: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 25),
                       child: Image.asset(
                         'assets/images/movieActive.png',
                         width: 24,

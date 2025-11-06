@@ -30,7 +30,33 @@ class _NoteEditorState extends State<NoteEditor> {
     _contentController = TextEditingController(text: widget.note.content);
   }
 
+  /// Check if note has any content
+  bool _hasContent() {
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+
+    // If title is "UNTITLED" and content is empty, consider it as no content
+    final hasTitle = title.isNotEmpty && title.toUpperCase() != "UNTITLED";
+    final hasContent = content.isNotEmpty;
+
+    return hasTitle || hasContent;
+  }
+
   Future<void> _saveNote() async {
+    // ✅ Don't save if it's a new note with no content
+    if (widget.isNew && !_hasContent()) {
+      debugPrint("⚠️ Empty note - not saving");
+      Navigator.pop(context);
+      return;
+    }
+
+    // ✅ Don't save if existing note has no content (user deleted everything)
+    if (!widget.isNew && !_hasContent()) {
+      debugPrint("⚠️ Note content cleared - not saving");
+      Navigator.pop(context);
+      return;
+    }
+
     final notesBox = Hive.box<Note>('notes');
 
     widget.note.title = _titleController.text.isEmpty
@@ -56,7 +82,7 @@ class _NoteEditorState extends State<NoteEditor> {
 
     // ✅ Note data structure with ID
     final noteData = {
-      'id': widget.note.id, // ✅ Include unique ID
+      'id': widget.note.id,
       'title': widget.note.title,
       'content': widget.note.content,
       'date': widget.note.date.toIso8601String(),
@@ -71,11 +97,9 @@ class _NoteEditorState extends State<NoteEditor> {
           .collection('notes');
 
       if (widget.isNew) {
-        // ➕ Add new note with ID as document ID
         await userNotesRef.doc(widget.note.id).set(noteData);
         debugPrint("✅ Note saved to Firestore with ID: ${widget.note.id}");
       } else {
-        // 🔄 Update existing note using ID
         await userNotesRef.doc(widget.note.id).update(noteData);
         debugPrint("✅ Note updated in Firestore with ID: ${widget.note.id}");
       }
@@ -89,7 +113,6 @@ class _NoteEditorState extends State<NoteEditor> {
         'users/${user.uid}/notes/${widget.note.id}',
       );
 
-      // Always use set() which creates or updates
       await realtimeRef.set(noteData);
 
       if (widget.isNew) {
